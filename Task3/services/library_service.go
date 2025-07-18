@@ -89,3 +89,17 @@ func (l *Library) ListBorrowedBooks(memberID int) []models.Book {
 	}
 	return member.BorrowedBooks
 }
+
+type Vertex struct {
+	x, y float64
+}
+
+func (v *Vertex) adder(num float64) error {
+	v.x += num
+	return nil
+}
+
+func main() {
+	v := Vertex{3, 4}
+	v.adder(5)
+}
