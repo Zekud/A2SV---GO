@@ -1,10 +1,17 @@
 package main
 
 import (
+	"task_manager/config"
 	"task_manager/router"
 )
 
 func main() {
+	// Connect to MongoDB
+	config.ConnectMongoDB()
+
+	// Set up routes
 	r := router.SetupRouter()
-	r.Run() // Start the server on the default port 8080
+
+	// Start the server
+	r.Run(":8080")
 }

@@ -9,7 +9,11 @@ import (
 )
 
 func GetTasks(c *gin.Context) {
-	tasks := data.GetAllTasks()
+	tasks, err := data.GetAllTasks()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tasks not found"})
+		return
+	}
 	c.JSON(http.StatusOK, tasks)
 }
 
@@ -29,7 +33,11 @@ func CreateTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	task = data.CreateTask(task)
+	task, err := data.CreateTask(task)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, task)
 }
 
