@@ -14,6 +14,15 @@ This API allows you to manage tasks using a RESTful interface. It now integrates
   MONGO_DB=task_manager
   ```
 
+## JWT Integration
+- The API uses JWT for authentication and authorization.
+- The secret key for signing and verifying JWTs is configured using an environment variable:
+  - `JWT_SECRET_KEY`: The secret key for JWT (e.g., `your_secret_key`).
+- Ensure you have a `.env` file in the root of your project with the following content:
+  ```env
+  JWT_SECRET_KEY=your_secret_key
+  ```
+
 ## Endpoints
 
 ### 1. Get All Tasks
