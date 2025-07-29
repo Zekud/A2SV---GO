@@ -117,3 +117,22 @@ This API allows you to manage tasks using a RESTful interface. It now integrates
    go run main.go
    ```
 4. Use tools like Postman or curl to test the API endpoints.
+
+## Clean Architecture Structure
+
+The codebase is organized using Clean Architecture principles for better maintainability and testability. The main layers are:
+
+- **Domain/**: Core business entities and logic (e.g., Task, User).
+- **Usecases/**: Application-specific business rules (e.g., task and user use cases).
+- **Repositories/**: Interfaces and implementations for data access (e.g., MongoDB repositories).
+- **Infrastructure/**: External services and middleware (e.g., JWT, password hashing, authentication middleware).
+- **Delivery/**: HTTP server, controllers, and routers (handles incoming requests and responses).
+
+### Entry Point
+- The application entry point is now `Delivery/main.go`.
+
+### Contribution Guidelines
+- Add new business logic to the appropriate use case in `Usecases/`.
+- Add new data access logic by extending repository interfaces and implementations in `Repositories/`.
+- Add new endpoints by updating controllers and routers in `Delivery/`.
+- Keep domain models in `Domain/` free from external dependencies.
