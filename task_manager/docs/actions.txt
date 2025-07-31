@@ -1,0 +1,623 @@
+
+1. Core Functional Domains & Responsibilities
+
+a. User Domain
+Authentication (Email/Social login)
+Profile management (bio, avatar, social links)
+Follow relationships (users, topics)
+Roles & permissions (Reader, Writer, Admin)
+
+b. Content Domain
+Rich-text post creation (text, images, embeds)
+Draft, publish, and schedule workflows
+Tagging, categorization, and series support
+Metadata (reading time, slug, SEO fields)
+
+c. Interaction Domain
+Likes/Claps (with count)
+Bookmarks
+Threaded comments and replies
+Notifications (new comments, likes, followers)
+
+d. Discovery Domain
+Search (articles, tags, authors)
+Trending and recommended content feeds
+Tag/topic-based navigation
+Personalization based on user activity
+
+e. Moderation Domain
+Content flagging and user reporting
+Admin dashboard for review actions
+Automated filters (spam, profanity)
+
+f. Analytics Domain
+Basic stats: views, likes, comments
+Advanced author analytics (time-on-page, bounce rate)
+
+
+
+
+
+
+
+
+
+2. Domain Entities Overview
+Key backend objects with relationships:
+
+User: Auth info, profile, role
+Post: Content, status, tags, author
+Comment: Linked to user/post; threaded
+Tag: Shared taxonomy for categorization
+Like/Clap: User ↔ Post/Comment relationship
+Bookmark: Saved content references
+Follow: User ↔ User/Topic link
+Notification: Triggered by interaction
+Report: Tracks moderation flow
+
+
+Admin : Super_admin ++
+User: regular user | name, Id, username, email, password, 
+blog(post): Id, title, content, commentslink(nesting), tags, authorId
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Skeleton Setup
+
+
+File structure
+
+SKELETON
+blogging-platform/
+├── cmd/
+│   └── server/
+│       └── main.go          # Entry point (outermost layer)
+├── config/
+│   └── config.go            # Configuration loader
+├── internal/
+│   ├── domain/              # Enterprise Business Rules
+│   ├── usecase/             # Application Business Rules
+│   ├── delivery/            # Interface Adapters
+│   └── repository/          # Interface Adapters
+├── pkg/
+│   └── di/                  # Dependency Injection
+└── test/                    # Test utilities
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+write-base/
+├── cmd/
+│   └── server/
+│       └── main.go
+├── config/
+│   └── config.go
+├── internal/
+│   ├── domain/
+│   │   ├── user.go
+│   │   ├── article.go
+│   │   ├── comment.go
+│   │   └── interfaces.go
+│   ├── usecase/
+│   │   ├── interfaces.go
+│   │   ├── user/
+│   │   │   └── service_stub.go
+│   │   ├── article/
+│   │   │   └── service_stub.go
+│   │   └── comment/
+│   │       └── service_stub.go
+│   ├── repository/
+│   │   ├── interfaces.go
+│   │   ├── stub_repository.go
+│   │   └── comment_repository_stub.go
+│   ├── delivery/
+│   │   └── http/
+│   │       ├── router/
+│   │       │   ├── router.go
+│   │       │   └── comment_router.go
+│   │       ├── controller/
+│   │       │   ├── comment_controller.go
+├── infrastructure/
+│   ├── middleware
+│   ├── jwt_service
+│   ├── password_service
+├── pkg/
+│   └── di/
+│       └── container.go
+└── go.mod
+
+
+
+
+
+Dependency Injection
+// pkg/di/container.go
+type Container struct {
+    // Repositories
+    UserRepository    domain.UserRepository
+    ArticleRepository domain.ArticleRepository
+    // Services
+    AuthService       domain.AuthService
+    PasswordService   domain.PasswordService
+    EmailService      domain.EmailService
+    // Use Cases
+    UserUsecase       usecase.UserService
+    ArticleUsecase    usecase.ArticleService
+    // Handlers
+    UserHandler       http.UserHandler
+    ArticleHandler    http.ArticleHandler
+}
+func NewContainer() *Container {
+    c := &Container{}
+    c.buildInfrastructure()
+    c.buildRepositories()
+    c.buildServices()
+    c.buildUseCases()
+    c.buildHandlers()
+    return c
+}
+
+Router
+
+package http
+import "github.com/gin-gonic/gin"
+func InitRouter(container *di.Container) *gin.Engine {
+	r := gin.Default()
+	api := r.Group("/api/v1")
+	{
+		api.POST("/register", container.UserHandler.Register)
+		api.POST("/login", container.UserHandler.Login)
+		// Article routes
+		protected := api.Group("")
+		protected.Use(container.AuthMiddleware.Verify)
+		{
+			protected.POST("/articles", container.ArticleHandler.CreateArticle)
+			protected.GET("/articles/:id", container.ArticleHandler.GetArticle)
+		}
+	}
+	return r
+}
+
+
+ROUTE handling - Websockets vs http requests?
+=> Websockets 
+WebSockets are overkill for:
+Simple CRUD operations (create/read articles)
+Static content serving
+Infrequent background updates
+Server-rendered pages without real-time elements
+=> So, http requests with Gin framework
+
+
+
+Domains Found
+
+package domain
+import "time"
+type UserRole string
+const (
+    RoleUser  UserRole = "user"
+    RoleAdmin UserRole = "admin"
+    RoleAdmin UserRole = "super-admin"
+)
+type User struct {
+    ID             string    
+    Username       string   
+    Email          string    
+    PasswordHash   string    
+    Role           UserRole  
+    Bio            string    
+    ProfileImage   string    
+    IsActive       bool      
+    CreatedAt      time.Time 
+    UpdatedAt      time.Time 
+}
+
+type Token struct {
+    UserID       string
+    Role 	    string
+    AccessToken  string    
+    RefreshToken string
+    ExpiresAt    time.Time
+}
+
+type PostStatus string
+
+const (
+    StatusDraft     PostStatus = "draft"
+    StatusPublished PostStatus = "published"
+    StatusArchived  PostStatus = "archived"
+)
+
+// Post represents a blog post or article.
+type Post struct {
+    ID             string      
+    Title          string      
+    Slug           string      
+    AuthorID       string      
+    ContentBlocks []ContentBlock
+    Excerpt        string      
+    CoverImage     string      
+    Language       string      
+    Tags           []Tag
+    Status         PostStatus  
+    CreatedAt      time.Time   
+    PublishedAt    time.Time
+    UpdatedAt      time.Time   
+    ViewCount      int   
+    LikeCount      int         
+    DislikeCount   int         
+    CommentCount   int         
+}
+
+
+
+
+type Comment struct {
+    ID        string
+    PostID    string
+    UserID    string
+    ParentID  string
+    Content   string
+    CreatedAt time.Time
+    UpdatedAt time.Time
+}
+
+// ContentBlockType distinguishes block kinds.
+type ContentBlockType string
+const (
+    TextBlockType      ContentBlockType = "text"
+    ImageBlockType     ContentBlockType = "image"
+    CodeBlockType      ContentBlockType = "code"
+    ParagraphBlockType ContentBlockType = "paragraph"
+)
+// BaseBlock holds ordering metadata.
+type BaseBlock struct {
+    Order int `json:"order"`
+}
+func (b BaseBlock) GetOrder() int { return b.Order }
+// ContentBlock is a polymorphic interface.
+type ContentBlock interface {
+    GetType() ContentBlockType
+    GetOrder() int
+}
+type TextBlock struct {
+    BaseBlock
+    Text  string `json:"text"`
+    Style string `json:"style"`  // e.g. "plain", "h1", etc.
+}
+func (TextBlock) GetType() ContentBlockType { return TextBlockType }
+type ImageBlock struct {
+    BaseBlock
+    URL     string `json:"url"`
+    AltText string `json:"alt_text"`
+    Caption string `json:"caption,omitempty"`
+}
+func (ImageBlock) GetType() ContentBlockType { return ImageBlockType }
+
+type CodeBlock struct {
+    BaseBlock
+    Code     string `json:"code"`
+    Language string `json:"language"` // e.g. "go", "python"
+}
+func (CodeBlock) GetType() ContentBlockType { return CodeBlockType }
+
+
+type ReactionType string
+
+const (
+    ReactionLike    ReactionType = "like"
+    ReactionDislike ReactionType = "dislike"
+)
+
+// Reaction represents a user's like or dislike of a post.
+type Reaction struct {
+    ID        string       `bson:"_id,omitempty" json:"id"`
+    PostID    string       `json:"post_id"`
+    UserID    string       `json:"user_id"`
+    Type      ReactionType `json:"type"`        // "like" or "dislike"
+    CreatedAt time.Time    `json:"created_at"`
+}
+
+type Tag struct {
+    ID          string
+    Name        string
+    CreatedAt   time.Time
+}
+
+// ReportTargetType indicates what is being reported.
+type ReportTargetType string
+const (
+    TargetPost    ReportTargetType = "post"
+    TargetComment ReportTargetType = "comment"
+    TargetUser    ReportTargetType = "user"
+)
+// Report represents a user’s report of a post, comment, or user.
+type Report struct {
+    ID         string           `bson:"_id,omitempty" json:"id"`
+    ReporterID string           `json:"reporter_id"`        // Who reported
+    TargetType ReportTargetType `json:"target_type"`        // e.g. "post" or "comment"
+    TargetID   string           `json:"target_id"`          // ID of the reported item
+    Reason     string           `json:"reason"`             // Description of the issue
+    CreatedAt  time.Time        `json:"created_at"`
+    Status     ReportStatus          `json:"status"`             // e.g. "open", "resolved"
+}
+
+type ReportStatus string
+const (
+Open ReportStatus = "open"
+Resolved ReportStatus = "resolved"
+)
+
+package errors
+// Error represents a domain error with a code and message.
+type Error struct {
+    Code    string
+    Message string
+}
+
+func (e Error) Error() string {
+    return e.Message
+}
+
+// User-related errors
+var (
+    ErrUserNotFound        = Error{Code: "USER_001", Message: "User not found"}
+    ErrEmailAlreadyTaken   = Error{Code: "USER_002", Message: "Email already registered"}
+    ErrInvalidCredentials  = Error{Code: "USER_003", Message: "Invalid email or password"}
+    ErrUnauthorized        = Error{Code: "USER_004", Message: "Unauthorized access"}
+    ErrInvalidUserID       = Error{Code: "USER_005", Message: "Invalid user ID format"}
+    ErrUserBanned          = Error{Code: "USER_006", Message: "User account is banned"}
+    ErrProfileIncomplete   = Error{Code: "USER_007", Message: "User profile is incomplete"}
+)
+
+// Post-related errors
+var (
+    ErrPostNotFound          = Error{Code: "POST_001", Message: "Post not found"}
+    ErrInvalidPostID        = Error{Code: "POST_002", Message: "Invalid post ID format"}
+    ErrEmptyPostTitle       = Error{Code: "POST_003", Message: "Post title cannot be empty"}
+    ErrEmptyPostContent     = Error{Code: "POST_004", Message: "Post content cannot be empty"}
+    ErrTagLimitExceeded     = Error{Code: "POST_005", Message: "Maximum tag limit exceeded"}
+    ErrUnauthorizedPostEdit = Error{Code: "POST_006", Message: "User not authorized to edit this post"}
+)
+
+// Comment-related errors
+var (
+    ErrCommentNotFound         = Error{Code: "COMMENT_001", Message: "Comment not found"}
+    ErrInvalidCommentID       = Error{Code: "COMMENT_002", Message: "Invalid comment ID format"}
+    ErrEmptyCommentContent    = Error{Code: "COMMENT_003", Message: "Comment content cannot be empty"}
+    ErrCommentNestingLimit    = Error{Code: "COMMENT_004", Message: "Maximum comment nesting level reached"}
+    ErrUnauthorizedCommentEdit = Error{Code: "COMMENT_005", Message: "User not authorized to edit this comment"}
+)
+
+// Collection-related errors
+var (
+    ErrCollectionNotFound       = Error{Code: "COLLECTION_001", Message: "Collection not found"}
+    ErrInvalidCollectionID      = Error{Code: "COLLECTION_002", Message: "Invalid collection ID format"}
+    ErrCollectionNameEmpty      = Error{Code: "COLLECTION_003", Message: "Collection name cannot be empty"}
+    ErrUnauthorizedCollection   = Error{Code: "COLLECTION_004", Message: "User not authorized to edit this collection"}
+    ErrUserNotCollectionAuthor  = Error{Code: "COLLECTION_005", Message: "User is not the author of this collection"}
+)
+
+// Report-related errors
+var (
+    ErrReportNotFound     = Error{Code: "REPORT_001", Message: "Report not found"}
+    ErrInvalidReportID    = Error{Code: "REPORT_002", Message: "Invalid report ID format"}
+    ErrReportReasonEmpty  = Error{Code: "REPORT_003", Message: "Report reason cannot be empty"}
+)
+
+// Auth-related errors
+var (
+    ErrInvalidToken        = Error{Code: "AUTH_001", Message: "Invalid or expired authentication token"}
+    ErrTokenExpired        = Error{Code: "AUTH_002", Message: "Authentication token has expired"}
+    ErrMissingAuthHeader   = Error{Code: "AUTH_003", Message: "Authorization header missing"}
+    ErrInvalidAuthHeader   = Error{Code: "AUTH_004", Message: "Invalid authorization header format"}
+)
+
+// Database-related errors
+var (
+    ErrDatabaseConnection = Error{Code: "DB_001", Message: "Failed to connect to database"}
+    ErrDatabaseQuery      = Error{Code: "DB_002", Message: "Database query failed"}
+    ErrDuplicateKey       = Error{Code: "DB_003", Message: "Duplicate key error"}
+    ErrTransactionFailed  = Error{Code: "DB_004", Message: "Database transaction failed"}
+)
+
+// General errors
+var (
+    ErrInternalServer   = Error{Code: "GEN_001", Message: "Internal server error"}
+    ErrInvalidRequest   = Error{Code: "GEN_002", Message: "Invalid request data"}
+    ErrRateLimitExceeded = Error{Code: "GEN_003", Message: "Rate limit exceeded"}
+    ErrNotFound         = Error{Code: "GEN_004", Message: "Requested resource not found"}
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Things Learned
+Fetch multiple things in parallel 
+func (s *ArticleService) GetArticlePageData(ctx context.Context, articleID string) (*ArticlePageData, error) {
+    var article domain.Article
+    var comments []domain.Comment
+    var related []domain.Article
+    
+    // WaitGroup coordinates multiple goroutines
+    var wg sync.WaitGroup
+    wg.Add(3) // 3 concurrent operations
+    
+    // Error handling channel
+    errCh := make(chan error, 3)
+    
+    // Fetch article
+    go func() {
+        defer wg.Done()
+        a, err := s.repo.GetByID(ctx, articleID)
+        if err != nil {
+            errCh <- err
+            return
+        }
+        article = a
+    }()
+    
+    // Fetch comments
+    go func() {
+        defer wg.Done()
+        c, err := s.commentRepo.GetForArticle(ctx, articleID)
+        if err != nil {
+            errCh <- err
+            return
+        }
+        comments = c
+    }()
+    
+    // Fetch related articles
+    go func() {
+        defer wg.Done()
+        r, err := s.repo.GetRelated(ctx, articleID)
+        if err != nil {
+            errCh <- err
+            return
+        }
+        related = r
+    }()
+    
+    // Wait for all to complete
+    go func() {
+        wg.Wait()
+        close(errCh)
+    }()
+    
+    // Check for errors
+    if len(errCh) > 0 {
+        return nil, <-errCh
+    }
+    
+    return &ArticlePageData{
+        Article:  article,
+        Comments: comments,
+        Related:  related,
+    }, nil
+}
+
+
+Control Timeout
+func getWithTimeout() (data interface{}, err error) {
+    resultCh := make(chan interface{})
+    errorCh := make(chan error)
+    
+    go func() {
+        data, err := slowOperation()
+        if err != nil {
+            errorCh <- err
+            return
+        }
+        resultCh <- data
+    }()
+    
+    select {
+    case res := <-resultCh:
+        return res, nil
+    case err := <-errorCh:
+        return nil, err
+    case <-time.After(2 * time.Second): // Timeout after 2s
+        return nil, errors.New("operation timed out")
+    }
+}
+
+
+go func() {
+    // Recovery to prevent panic from crashing server
+    defer func() {
+        if r := recover(); r != nil {
+            log.Println("Recovered in background task:", r)
+        }
+    }()
+    
+    // Safe background operation
+    h.analyticsService.TrackEvent("article_view", articleID)
+}()
+
+
+aha
+
+
+
